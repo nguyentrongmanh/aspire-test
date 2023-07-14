@@ -12,7 +12,7 @@ $ composer install
 # copy env
 $ cp .env.example .env
 # docker run
-$ docker-compose up -d
+$ ./vendor/bin/sail up -d
 # generate laravel APP_KEY
 $ ./vendor/bin/sail artisan key:generate
 # run database migration and seed
