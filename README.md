@@ -38,6 +38,12 @@ password
 ## Format code
 
 ``` bash
-# lint php
 $ ./vendor/bin/pint
+```
+
+## Run test
+
+``` bash
+$ ./vendor/bin/sail artisan test
+```
 
