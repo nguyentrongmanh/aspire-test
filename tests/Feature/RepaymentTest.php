@@ -43,10 +43,6 @@ class RepaymentTest extends TestCase
         $this->actingAs($user);
 
         $loan = Loan::factory()->create(['user_id' => $user->id]);
-        $repayments = Repayment::factory()->count($loan->term)->create([
-            'loan_id' => $loan->id,
-            'state' => LoanStatus::APPROVED,
-        ]);
 
         $repayment = Repayment::factory()->create([
             'loan_id' => $loan->id,
@@ -58,5 +54,22 @@ class RepaymentTest extends TestCase
             'amount' => $paymentAmount,
         ])->assertStatus(Response::HTTP_BAD_REQUEST);
         $response->assertJsonValidationErrorFor('amount');
+    }
+
+    public function test_user_cant_pay_for_unapproved_loan()
+    {
+        $user = User::factory()->create(['role' => UserRole::USER]);
+        $this->actingAs($user);
+
+        $loan = Loan::factory()->create(['user_id' => $user->id]);
+
+        $repayment = Repayment::factory()->create([
+            'loan_id' => $loan->id,
+            'state' => LoanStatus::PENDING,
+        ]);
+
+        $response = $this->put(route('repayments.update', ['repayment' => $repayment]), [
+            'amount' => $repayment->amount,
+        ])->assertStatus(Response::HTTP_BAD_REQUEST);
     }
 }

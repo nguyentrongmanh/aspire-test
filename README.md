@@ -47,3 +47,14 @@ $ ./vendor/bin/pint
 $ ./vendor/bin/sail artisan test
 ```
 
+## Database connection
+
+``` bash
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
+DB_DATABASE=aspise-test
+DB_USERNAME=sail
+DB_PASSWORD=password
+```
+

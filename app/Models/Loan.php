@@ -20,4 +20,9 @@ class Loan extends Model
     {
         return $this->hasMany(Repayment::class);
     }
+
+    public function scopeByUserId($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
 }

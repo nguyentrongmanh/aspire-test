@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Models\Loan;
+use App\Models\Repayment;
 use App\Policies\LoanPolicy;
+use App\Policies\RepaymentPolicy;
 // use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -16,6 +18,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Loan::class => LoanPolicy::class,
+        Repayment::class => RepaymentPolicy::class,
     ];
 
     /**
