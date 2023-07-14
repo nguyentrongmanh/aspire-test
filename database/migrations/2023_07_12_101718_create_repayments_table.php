@@ -1,6 +1,6 @@
 <?php
 
-use App\Enums\UserRole;
+use App\Enums\LoanStatus;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -14,14 +14,12 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('repayments', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->enum('role', UserRole::getValues())->default(UserRole::USER);
-            $table->rememberToken();
+            $table->bigInteger('loan_id');
+            $table->float('amount')->unsigned();
+            $table->date('due_date')->nullable();
+            $table->enum('state', LoanStatus::getValues())->default(LoanStatus::PENDING);
             $table->timestamps();
         });
     }
@@ -33,6 +31,6 @@ return new class extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('users');
+        Schema::dropIfExists('repayments');
     }
 };
