@@ -72,6 +72,7 @@ class LoanController extends Controller
             return (new LoanResource($loan))->response()->setStatusCode(Response::HTTP_CREATED);
         } catch (\Exception $e) {
             DB::rollback();
+
             return response()->json(['message' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -99,11 +100,11 @@ class LoanController extends Controller
         $this->authorize('approve', $loan);
         DB::transaction(function () use ($loan) {
             $loan->state = LoanStatus::APPROVED;
-            $loan->approved_date = Carbon::now()->format("Y-m-d");
+            $loan->approved_date = Carbon::now()->format('Y-m-d');
             $loan->save();
 
             Repayment::where('loan_id', $loan->id)->update([
-                'state' => LoanStatus::APPROVED
+                'state' => LoanStatus::APPROVED,
             ]);
         });
 
