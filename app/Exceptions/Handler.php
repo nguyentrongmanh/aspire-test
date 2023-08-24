@@ -4,7 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\Response;
-// use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -65,7 +65,7 @@ class Handler extends ExceptionHandler
         });
 
         $this->renderable(function (AccessDeniedHttpException $e) {
-            return response()->json(['message' => $e->getMessage()], Response::HTTP_FORBIDDEN);
+            return response()->json(['message' => "Permission denied"], Response::HTTP_FORBIDDEN);
         });
 
         $this->renderable(function (Throwable $e) {

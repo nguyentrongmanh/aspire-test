@@ -61,4 +61,20 @@ class LoanRepositoryTest extends TestCase
             $dueDate->addWeeks(1); // Increment due date by 1 week for each iteration
         }
     }
+
+    public function test_approve_loan()
+    {
+        $loan = Loan::factory()->create(['state' => LoanStatus::PENDING]);
+
+        $this->loanRepository->approveLoan($loan);
+
+        $loan->refresh();
+        $this->assertEquals(LoanStatus::APPROVED, $loan->state);
+        $this->assertNotNull($loan->approved_date);
+
+        $repayments = Repayment::where('loan_id', $loan->id)->get();
+        foreach ($repayments as $repayment) {
+            $this->assertEquals(LoanStatus::APPROVED, $repayment->state);
+        }
+    }
 }

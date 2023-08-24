@@ -44,4 +44,15 @@ class LoanRepository implements LoanRepositoryInterface
 
         Repayment::insert($repayments);
     }
+
+    public function approveLoan(Loan $loan): void
+    {
+        $loan->state = LoanStatus::APPROVED;
+        $loan->approved_date = Carbon::now()->format('Y-m-d');
+        $loan->save();
+
+        Repayment::where('loan_id', $loan->id)->update([
+            'state' => LoanStatus::APPROVED,
+        ]);
+    }
 }

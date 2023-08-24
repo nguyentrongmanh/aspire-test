@@ -89,13 +89,7 @@ class LoanController extends Controller
         try {
             DB::beginTransaction();
 
-            $loan->state = LoanStatus::APPROVED;
-            $loan->approved_date = Carbon::now()->format('Y-m-d');
-            $loan->save();
-
-            Repayment::where('loan_id', $loan->id)->update([
-                'state' => LoanStatus::APPROVED,
-            ]);
+            $this->loanRepository->approveLoan($loan);
 
             DB::commit();
 

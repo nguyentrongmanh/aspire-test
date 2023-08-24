@@ -6,105 +6,113 @@ use App\Enums\LoanStatus;
 use App\Enums\UserRole;
 use App\Models\Loan;
 use App\Models\User;
+use App\Interfaces\LoanRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Http\Response;
 use Tests\TestCase;
 
 class LoanTest extends TestCase
 {
-    public function test_admin_can_approve_the_loan()
+    public function setUp(): void
     {
-        $user = User::factory()->create([
+        parent::setUp();
+        $this->user = User::factory()->create([
             'role' => UserRole::USER,
         ]);
-        $admin = User::factory()->create([
+        $this->admin = User::factory()->create([
             'role' => UserRole::ADMIN,
         ]);
 
-        $loan = Loan::factory()->create([
-            'user_id' => $user->id,
+        $this->loan = Loan::factory()->create([
+            'user_id' => $this->user->id,
             'state' => LoanStatus::PENDING,
         ]);
-        $this->actingAs($admin);
-        $response = $this->post(route('loans.approve', ['loan' => $loan]));
-
-        $response->assertStatus(Response::HTTP_OK);
-        $loan->refresh();
-        $this->assertEquals($loan->state, LoanStatus::APPROVED);
     }
 
     /**
-     * A basic feature test example.
+     * Test admin can approve a loan
+     *
+     * @return void
+     */
+    public function test_admin_approve_the_loan()
+    {
+        $this->actingAs($this->admin);
+
+        // Act
+        $this->post(route('loans.approve', ['loan' => $this->loan]))
+            ->assertStatus(Response::HTTP_OK);
+
+        // Assert
+        $this->loan->refresh();
+        $this->assertEquals($this->loan->state, LoanStatus::APPROVED);
+    }
+
+    /**
+     * User doesn't have permission to approve a loan.
      *
      * @return void
      */
     public function test_user_can_not_approve_the_loan()
     {
-        $user = User::factory()->create([
-            'role' => UserRole::USER,
-        ]);
-
-        $loan = Loan::factory()->create([
-            'user_id' => $user->id,
-            'state' => LoanStatus::PENDING,
-        ]);
-        $this->actingAs($user);
-        $response = $this->post(route('loans.approve', ['loan' => $loan]));
-
-        $response->assertStatus(Response::HTTP_FORBIDDEN);
+        $this->actingAs($this->user);
+        $this->post(route('loans.approve', ['loan' => $this->loan]))
+            ->assertStatus(Response::HTTP_FORBIDDEN)
+            ->assertJsonStructure(["message"]);
     }
 
-    public function test_user_can_view_them_own_loan_only()
+    /**
+     * Test can't approve a loan due to an exception.
+     *
+     * @return void
+     */
+    public function test_approve_loan_exception()
     {
-        $loan = Loan::factory()->create();
-        $user = User::factory()->create([
-            'role' => UserRole::USER,
-        ]);
-        $this->actingAs($user);
+        $this->actingAs($this->admin);
 
-        $response = $this->get(route('loans.show', ['loan' => $loan]));
+        // Mock the LoanRepositoryInterface to throw an exception
+        $mockRepository = $this->createMock(LoanRepositoryInterface::class);
+        $mockRepository->expects($this->once())
+            ->method('approveLoan')
+            ->willThrowException(new \Exception('Test Exception'));
+        $this->app->instance(LoanRepositoryInterface::class, $mockRepository);
 
-        $response->assertStatus(Response::HTTP_FORBIDDEN);
+        // Act and assert
+        $this->post(route('loans.approve', ['loan' => $this->loan]))
+            ->assertStatus(Response::HTTP_INTERNAL_SERVER_ERROR)
+            ->assertJsonStructure(["message"]);
     }
 
-    public function test_admin_can_view_any_loan()
-    {
-        $loan = Loan::factory()->create();
-        $admin = User::factory()->create([
-            'role' => UserRole::ADMIN,
-        ]);
-        $this->actingAs($admin);
-
-        $response = $this->get(route('loans.show', ['loan' => $loan]));
-
-        $response->assertStatus(Response::HTTP_OK);
-    }
-
+    /**
+     * User can create a loan with valid data.
+     * 
+     * @return void
+     */
     public function test_user_can_create_loan()
     {
-        $user = User::factory()->create([
-            'role' => UserRole::USER,
-        ]);
-        $this->actingAs($user);
+        $this->actingAs($this->user);
 
+        // input data
         $amount = '5000';
         $term = 5;
+
+        // Act
         $response = $this->post(route('loans.store', [
             'amount' => $amount,
             'term' => $term,
         ]));
 
+        // Assert
         $response->assertStatus(Response::HTTP_CREATED);
 
+        // Verify loan details in the database
         $loan = Loan::find($response->decodeResponseJson()['data']['id']);
-
         $this->assertEquals($loan->amount, $amount);
         $this->assertEquals($loan->term, $term);
         $this->assertEquals($loan->state, LoanStatus::PENDING);
 
+        // Verify repayment details
         $repaymentAmount = round($amount / $term, 2);
         $dueDate = Carbon::now()->addWeeks(1); // Start with the next week
-
         foreach ($loan->repayments as $repayment) {
             $this->assertEquals($repaymentAmount, $repayment->amount);
             $this->assertEquals(LoanStatus::PENDING, $repayment->state);
@@ -113,29 +121,104 @@ class LoanTest extends TestCase
         }
     }
 
+    /**
+     * User can not create a loan with invalid data.
+     * 
+     * @return void
+     */
     public function test_user_cant_create_loan_with_invalid_data()
     {
-        $user = User::factory()->create([
-            'role' => UserRole::USER,
-        ]);
-        $this->actingAs($user);
+        $this->actingAs($this->user);
 
         $amount = '5000';
         $term = 5;
-        $response = $this->post(route('loans.store', [
+        $this->post(route('loans.store', [
             'term' => $term,
-        ]));
+        ]))->assertJsonValidationErrorFor('amount')
+            ->assertStatus(Response::HTTP_BAD_REQUEST);
 
-        $response->assertJsonValidationErrorFor('amount');
-
-        $response = $this->post(route('loans.store', [
+        $this->post(route('loans.store', [
             'amount' => $amount,
-        ]));
-
-        $response->assertJsonValidationErrorFor('term');
+        ]))->assertJsonValidationErrorFor('term')
+            ->assertStatus(Response::HTTP_BAD_REQUEST);
     }
 
-    public function test_user_view_index()
+    /**
+     * Test creating a loan encounters an exception.
+     * 
+     * @return void
+     */
+    public function test_create_loan_exception()
+    {
+        $this->actingAs($this->user);
+
+        // input data
+        $amount = '5000';
+        $term = 5;
+
+        // Mock the LoanRepositoryInterface to throw an exception
+        $mockRepository = $this->createMock(LoanRepositoryInterface::class);
+        $mockRepository->expects($this->once())
+            ->method('createLoan')
+            ->willThrowException(new \Exception('Test Exception'));
+        $this->app->instance(LoanRepositoryInterface::class, $mockRepository);
+
+        // Act and Assert
+        $response = $this->post(route('loans.store', [
+            'term' => $term,
+            'amount' => $amount
+        ]))->assertStatus(Response::HTTP_INTERNAL_SERVER_ERROR)
+            ->assertJsonStructure(["message"]);
+    }
+
+    /**
+     * Test user can only view their own loan details.
+     * 
+     * @return void
+     */
+    public function test_user_can_view_them_own_loan_only()
+    {
+        $newUser = User::factory()->create([
+            'role' => UserRole::USER,
+        ]);
+        $this->actingAs($newUser);
+
+        $this->get(route('loans.show', ['loan' => $this->loan]))
+            ->assertStatus(Response::HTTP_FORBIDDEN);
+
+        $this->actingAs($this->user);
+        $this->get(route('loans.show', ['loan' => $this->loan]))
+            ->assertStatus(Response::HTTP_OK)
+            ->assertJsonStructure([ "data" => [
+                "id", 
+                "amount",
+                "term"
+            ]]);
+    }
+
+    /**
+     * Test admin can view any loan detail.
+     * 
+     * @return void
+     */
+    public function test_admin_can_view_any_loan_detail()
+    {
+        $this->actingAs($this->admin);
+        $this->get(route('loans.show', ['loan' => $this->loan]))
+            ->assertStatus(Response::HTTP_OK)
+            ->assertJsonStructure([ "data" => [
+                "id", 
+                "amount",
+                "term"
+            ]]);
+    }
+
+    /**
+     * Test user can view their own loans only in the index.
+     * 
+     * @return void
+     */
+    public function test_user_view_own_loans_in_index()
     {
         // Create user
         $user1 = User::factory()->create([
@@ -154,39 +237,32 @@ class LoanTest extends TestCase
             'user_id' => $user2->id,
         ]);
 
-        // Make the request
-        $response = $this->get(route('loans.index'));
-
-        // Assert response status code
-        $response->assertStatus(Response::HTTP_OK);
-
-        $response->assertJsonFragment([
-            'id' => $loan1->id,
-        ]);
-        $response->assertJsonMissing(['id' => $loan2->id]);
+        // act and assert
+        $this->get(route('loans.index'))
+            ->assertStatus(Response::HTTP_OK)
+            ->assertJsonFragment(['id' => $loan1->id])
+            ->assertJsonMissing(['id' => $loan2->id]);
     }
 
-    public function test_admin_view_index()
+    /**
+     * Test admin can view all loans in the index.
+     * 
+     * @return void
+     */
+    public function test_admin_view_all_loan_in_index()
     {
-        // Create admin
-        $admin = User::factory()->create([
-            'role' => UserRole::ADMIN,
-        ]);
-        $this->actingAs($admin);
+        $this->actingAs($this->admin);
 
         // Create sample loans
         $loan1 = Loan::factory()->create();
         $loan2 = Loan::factory()->create();
 
-        // Make the request
-        $response = $this->get(route('loans.index'));
-
-        // Assert response status code
-        $response->assertStatus(Response::HTTP_OK);
-
-        $response->assertJsonFragment([
-            'id' => $loan1->id,
-            'id' => $loan2->id,
-        ]);
+        // act and assert
+        $this->get(route('loans.index'))
+            ->assertStatus(Response::HTTP_OK)
+            ->assertJsonFragment([
+                'id' => $loan1->id,
+                'id' => $loan2->id,
+            ]);
     }
 }
