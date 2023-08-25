@@ -47,6 +47,12 @@ $ ./vendor/bin/pint
 $ ./vendor/bin/sail artisan test
 ```
 
+## Check test coverage
+
+``` bash
+$ ./vendor/bin/sail artisan test --coverage
+```
+
 ## Database connection
 
 ``` bash
